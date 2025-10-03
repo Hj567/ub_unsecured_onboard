@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>KFS – {{ Loan_Application_ID }}</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    color: #000;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+  .container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 0 20px;
+  }
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 15px;
+  }
+  .btn {
+    border: 1px solid #333;
+    background: #fff;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  .logo {
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .logo img {
+    height: 50px;
+  }
+  .title {
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 20px;
+  }
+  h1 { font-size: 18px; margin: 5px 0; }
+  h2 { font-size: 16px; margin: 0; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-bottom: 15px;
+  }
+  th, td {
+    border: 1px solid #000;
+    padding: 6px 8px;
+    font-size: 14px;
+    vertical-align: top;
+  }
+  th {
+    background: #f5f5f5;
+    text-align: left;
+  }
+  .section-title {
+    font-weight: bold;
+    margin: 30px 0 4px;
+  }
+  .sub {
+    display: block;
+    font-size: 12px;
+    color: #444;
+    margin-top: 2px;
+  }
+  .signature-block {
+    margin-top: 150px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .sig {
+    width: 30%;
+    border-top: 1px solid #000;
+    text-align: center;
+    padding-top: 5px;
+    font-size: 13px;
+  }
+ /* Keep content within A4 printable area and match table width */
+  @media print {
+    body { margin: 0; }
+    .btn { display: none; }
+    .container {
+      width: 190mm;        /* inner content width */
+      margin: 10mm auto;   /* 10mm margins -> 190 + 10 + 10 = 210mm (A4) */
+      padding: 0;
+    }
+  }
+  /* On screen, mirror roughly the same measure */
+ .fineprint {
+  margin-top: 25px;
+  padding-bottom: 25px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-align: justify;        /* clean edges */
+  overflow-wrap: anywhere;    /* break long words if needed */
+  background: #fff;           /* white like table cells */
+  max-width: 100%;            /* never exceed container width */
+  box-sizing: border-box;     /* padding included in width */
+  text-align: center;
+ position: absolute;
+ left: 50%;
+ transform: translate(-50%);
+}
+
+</style>
+</head>
+<body>
+<div class="container">
+  <!-- PDF Action Buttons -->
+  <div class="actions">
+    <button class="btn" onclick="window.print()">Print</button>
+    <button class="btn" id="downloadPdfBtn">Save as PDF</button>
+  </div>
+
+  <!-- Everything inside this div will be in the PDF -->
+  <div id="kfs-content">
+    <div class="logo">
+      <img src="{{ logo_src }}" alt="UB Portfolio" style="height:48px;" />
+    </div>
+    <div class="title">
+      <h1>Key Fact Sheet (KFS) – Microfinance Loan</h1>
+      <span class="sub">मुख्य तथ्य पत्रक – सूक्ष्म वित्त ऋण</span>
+    </div>
+
+    <!-- Borrower Info -->
+    <table>
+      <tr>
+        <th>Loan Application ID <span class="sub">ऋण आवेदन आईडी</span></th>
+        <td>{{ Loan_Application_ID }}</td>
+      </tr>
+      <tr>
+        <th>Borrower Name <span class="sub">ऋणकर्ता का नाम</span></th>
+        <td>{{ Borrower_Name }}</td>
+      </tr>
+      <tr>
+        <th>Co-Borrower Name <span class="sub">सह-ऋणकर्ता का नाम</span></th>
+        <td>{{ Co_Borrower_Name }}</td>
+      </tr>
+      <tr>
+        <th>Loan Type <span class="sub">ऋण प्रकार</span></th>
+        <td>{{ Loan_Type }}</td>
+      </tr>
+      <tr>
+        <th>Date of Sanction <span class="sub">स्वीकृति तिथि</span></th>
+        <td>{{ Sanction_Date }}</td>
+      </tr>
+    </table>
+
+    <!-- Loan Details -->
+    <div class="section-title">1. Loan Details <span class="sub">1. ऋण विवरण</span></div>
+    <table>
+      <tr><th>Item <span class="sub">विवरण</span></th><th>Value <span class="sub">मान</span></th></tr>
+      <tr><td>Amount Sanctioned <span class="sub">स्वीकृत राशि</span></td><td>₹ {{ Amount_Sanctioned }}</td></tr>
+      <tr><td>Tenure (Months) <span class="sub">अवधि (महीने)</span></td><td>{{ Tenure }}</td></tr>
+      <tr><td>Interest Rate (Yearly) <span class="sub">ब्याज दर (वार्षिक)</span></td><td>{{ Interest_Rate }}</td></tr>
+      <tr><td>Repayment Frequency <span class="sub">किस्त आवृत्ति</span></td><td>{{ EMI_Frequency }}</td></tr>
+      <tr><td>EMI Amount <span class="sub">ईएमआई राशि</span></td><td>₹ {{ EMI_Amount }}</td></tr>
+      <tr><td>Total Repayable Amount <span class="sub">कुल देय राशि</span></td><td>₹ {{ Total_Repayable_Amount }}</td></tr>
+      <tr><td>First EMI Date <span class="sub">पहली किस्त की तिथि</span></td><td>{{ First_EMI_Date }}</td></tr>
+      <tr><td>Last EMI Date <span class="sub">अंतिम किस्त की तिथि</span></td><td>{{ Last_EMI_Date }}</td></tr>
+    </table>
+
+    <!-- Charges -->
+    <div class="section-title">2. Charges <span class="sub">2. शुल्क</span></div>
+    <table>
+      <tr><th>Charge <span class="sub">शुल्क प्रकार</span></th><th>Value <span class="sub">राशि</span></th></tr>
+      <tr><td>Processing Fee <span class="sub">प्रोसेसिंग शुल्क</span></td><td>₹ {{ Processing_Fee }}</td></tr>
+      <tr><td>Stamp Duty <span class="sub">स्टाम्प ड्यूटी</span></td><td>₹ 1000</td></tr>
+
+    </table>
+
+    <!-- Disbursement -->
+
+    <!-- Signatures -->
+    <div class="section-title">4. Signatures <span class="sub">4. हस्ताक्षर</span></div>
+    <div class="signature-block">
+      <div class="sig">
+        Borrower Signature
+        <span class="sub">ऋणकर्ता के हस्ताक्षर</span>
+      </div>
+      <div class="sig">
+        Co-Borrower Signature
+        <span class="sub">सह-ऋणकर्ता के हस्ताक्षर</span>
+      </div>
+      <div class="sig">
+        Credit Officer Signature
+        <span class="sub">क्रेडिट अधिकारी के हस्ताक्षर</span>
+      </div>
+    </div>
+  </div><!-- /kfs-content -->
+</div>
+
+<div class="fineprint">
+  <p>
+    This Key Fact Sheet (KFS) is issued in accordance with applicable Reserve Bank of India (RBI) guidelines. 
+    It should be read in conjunction with the loan agreement and sanction letter. 
+    In case of any discrepancy, the terms and conditions of the signed loan agreement will prevail.
+  </p>
+  <p>
+    यह मुख्य तथ्य पत्रक (KFS) भारतीय रिज़र्व बैंक (RBI) के लागू दिशानिर्देशों के अनुसार जारी किया गया है। 
+    इसे ऋण अनुबंध और स्वीकृति पत्र के साथ पढ़ा जाना चाहिए। 
+    किसी भी विसंगति की स्थिति में, हस्ताक्षरित ऋण अनुबंध की शर्तें और नियम मान्य होंगे।
+  </p>
+</div>
+
+<!-- html2pdf.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+        integrity="sha512-YcsIPYq6dB8pH0d3bK2o8GvEaYk5y7Sx6xF5pSzi3n3m8m2wX0pH6rXlH5p6x5t+5k6QWqJf4qZ0QpQm0WkKxw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+  document.getElementById('downloadPdfBtn').addEventListener('click', function () {
+    const element = document.getElementById('kfs-content');
+    const opt = {
+      margin: [10, 10, 10, 10],
+      filename: 'loan_kfs_{{ Loan_Application_ID }}.pdf',
+      image: { type: 'jpeg', quality: 0.98 },
+      html2canvas: { scale: 2, useCORS: true },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    html2pdf().from(element).set(opt).save();
+  });
+</script>
+</body>
+</html>

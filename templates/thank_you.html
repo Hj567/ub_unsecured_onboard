@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+
+  <section class="nf-header" style="text-align:center;">
+    <h1 class="nf-title">🎉 Thank you!</h1>
+    <p class="nf-sub">
+      Your contract has been signed and saved.
+      {% if borrower_name %}<br/>Borrower: <strong>{{ borrower_name }}</strong>{% endif %}
+      {% if loan_id %}<br/>Loan Reference: <code>{{ loan_id }}</code>{% endif %}
+    </p>
+  </section>
+
+  <div class="nf-field" style="text-align:center;">
+    <p class="nf-help" style="margin-bottom:16px;">
+      Our team will proceed with the next steps and get back to you shortly.
+    </p>
+    <div class="nf-actions" style="display:flex; gap:10px; justify-content:center;">
+      <a class="nf-btn" href="{{ url_for('form') }}">Start another application</a>
+      <a class="nf-btn" href="{{ url_for('form_page5') }}" style="background:#374151; border-color:#4b5563;">
+        Back to Income Assessment
+      </a>
+    </div>
+  </div>
+
+{% endblock %}

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  :root{ --bg:#ffffff; --fg:#111111; --muted:#4b5563; }
+  html, body, .wrap { background:#ffffff !important; color:#111111 !important; }
+  .nf-header{ background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:24px; margin-bottom:20px; }
+  .nf-title{ color:#111; }
+  .nf-sub{ color:#4b5563; }
+  .kfs-wrapper{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:20px; margin-bottom:18px; box-shadow:0 8px 24px rgba(17,24,39,.06); }
+  .kfs-content{ color:#111; max-width:1100px; margin:0 auto; }
+  .nf-field{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:20px; margin:2px 0 16px; }
+  .nf-label{ color:#111; font-size:17px; }
+  .nf-help{ color:#6b7280; }
+  .nf-btn{ background:#2563eb; color:#fff; border:1px solid rgba(37,99,235,.6); }
+  .nf-btn:hover{ box-shadow:0 4px 18px rgba(37,99,235,.28); }
+</style>
+
+<section class="nf-header">
+  <h1 class="nf-title">{{ title or "Review & Sign Loan Agreement" }}</h1>
+  <p class="nf-sub">Please review the agreement in full, then sign below to continue.</p>
+</section>
+
+<section class="kfs-wrapper">
+  <div class="kfs-content">
+    {{ contract_html|safe }}
+  </div>
+</section>
+
+<div style="display:flex; justify-content:center; margin: 16px 0 6px;">
+  <a href="#sign-form" class="nf-btn" style="text-decoration:none;">Scroll to Sign</a>
+</div>
+
+<form id="sign-form" class="nf-form" method="post" action="{{ url_for('contract_sign_submit') }}" style="margin-top:12px;">
+  <div class="nf-field">
+    <label class="nf-label" for="signer_name">Full Name *</label>
+    <input class="nf-input" type="text" name="signer_name" id="signer_name" value="{{ borrower_name or '' }}" required/>
+  </div>
+
+  <div class="nf-field">
+    <label class="nf-label" for="signer_email">Email *</label>
+    <input class="nf-input" type="email" name="signer_email" id="signer_email" placeholder="name@example.com" required/>
+  </div>
+
+  <div class="nf-field">
+    <label class="nf-label">Signing Context</label>
+    <div class="nf-help" style="color:#111;">
+      IP: <strong>{{ sign_ctx.ip }}</strong> · Timestamp (UTC): <strong>{{ sign_ctx.now_utc }}</strong>
+    </div>
+  </div>
+
+  <div class="nf-field">
+    <label class="nf-label">Consent</label>
+    <label class="nf-opt" for="consent">
+      <input class="nf-check" type="checkbox" id="consent" required />
+      <span style="color:#111">
+        I, <span id="attn_name">{{ borrower_name or "the borrower" }}</span>, agree to sign this Loan Agreement electronically.
+      </span>
+    </label>
+  </div>
+
+  <div class="nf-field">
+    <label class="nf-label">Signature *</label>
+    <div style="background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:10px;">
+      <canvas id="sig" width="1100" height="280" style="background:#ffffff; border-radius:6px; width:100%; height:auto;"></canvas>
+    </div>
+    <div class="nf-help">Sign with mouse or finger (on touch). Use “Clear” if you need to re-draw.</div>
+    <div style="margin-top:10px; display:flex; gap:10px;">
+      <button type="button" class="nf-btn" id="clearBtn" style="background:#374151; border-color:#4b5563;">Clear</button>
+    </div>
+  </div>
+
+  <input type="hidden" name="sig_data_url" id="sig_data_url"/>
+  <input type="hidden" name="attn_ip" value="{{ sign_ctx.ip }}"/>
+  <input type="hidden" name="attn_ts_utc" value="{{ sign_ctx.now_utc }}"/>
+
+  <div class="nf-actions" style="margin-top:8px;">
+    <button class="nf-btn" type="submit">Sign & Continue</button>
+  </div>
+</form>
+
+<script>
+(function() {
+  const nameInput = document.getElementById('signer_name');
+  const attnName  = document.getElementById('attn_name');
+  if (nameInput && attnName) {
+    nameInput.addEventListener('input', () => { attnName.textContent = nameInput.value || '{{ borrower_name or "the borrower" }}'; });
+  }
+
+  const canvas = document.getElementById('sig');
+  const ctx = canvas.getContext('2d');
+
+  function initSignaturePad() {
+    const ratio = window.devicePixelRatio || 1;
+    const cssWidth  = canvas.clientWidth || 1100;
+    const cssHeight = Math.max(260, Math.floor(cssWidth * 0.25));
+    canvas.width  = Math.floor(cssWidth * ratio);
+    canvas.height = Math.floor(cssHeight * ratio);
+    canvas.style.width  = cssWidth + "px";
+    canvas.style.height = cssHeight + "px";
+
+    if (ctx.reset) ctx.reset();
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#1f2937';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+  }
+
+  let drawing = false, last = null;
+  function pos(e) {
+    const r = canvas.getBoundingClientRect();
+    const t = (e.touches && e.touches[0]) || e;
+    return { x: t.clientX - r.left, y: t.clientY - r.top };
+  }
+  function start(e){ drawing = true; last = pos(e); e.preventDefault(); }
+  function move(e){
+    if (!drawing) return;
+    const p = pos(e);
+    ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+    last = p; e.preventDefault();
+  }
+  function end(){ drawing = false; }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  window.addEventListener('mouseup', end);
+  canvas.addEventListener('touchstart', start, {passive:false});
+  canvas.addEventListener('touchmove',  move,  {passive:false});
+  canvas.addEventListener('touchend',   end);
+
+  document.getElementById('clearBtn').addEventListener('click', () => initSignaturePad());
+
+  initSignaturePad();
+  window.addEventListener('resize', initSignaturePad);
+
+  // Export hi-res PNG on white
+  document.getElementById('sign-form').addEventListener('submit', (e) => {
+    const exportCanvas = document.createElement('canvas');
+    const targetW = Math.min(1800, canvas.width);
+    const targetH = Math.min(700,  canvas.height);
+    exportCanvas.width = targetW; exportCanvas.height = targetH;
+    const ex = exportCanvas.getContext('2d');
+    ex.fillStyle = '#ffffff';
+    ex.fillRect(0,0,targetW,targetH);
+    ex.drawImage(canvas, 0, 0, targetW, targetH);
+    document.getElementById('sig_data_url').value = exportCanvas.toDataURL('image/png');
+  });
+})();
+</script>
+
+{% endblock %}

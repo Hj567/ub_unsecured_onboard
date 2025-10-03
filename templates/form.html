@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block content %}
+
+  <!-- Header -->
+  <section class="nf-header">
+    <h1 class="nf-title">{{ title or "Form" }}</h1>
+    {% if subtitle %}
+      <p class="nf-sub">{{ subtitle }}</p>
+    {% endif %}
+    <div class="nf-badge">Only members of your workspace can fill this form</div>
+  </section>
+
+  {% if success %}
+    <div class="nf-success">Created! Notion page ID: <code>{{ success_id }}</code></div>
+  {% endif %}
+  {% if errors.get("__all__") %}
+    <div class="nf-field"><div class="nf-error">{{ errors.get("__all__") }}</div></div>
+  {% endif %}
+
+  <!-- Form -->
+  <form class="nf-form" method="post" enctype="multipart/form-data" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}"/>
+
+    {% for f in fields %}
+      <div class="nf-field">
+        <label class="nf-label" for="{{ f.id }}">
+          {{ f.name }}{% if f.required %} *{% endif %}
+          {% if f.name == "GPS Coordinates" %}
+            <a href="#" id="nf-geolocate" style="float:right; font-size:13px; color:#9ec1ff; text-decoration:none;">Use my location</a>
+          {% endif %}
+        </label>
+
+        {# ---------- TYPE RENDERING ---------- #}
+        {% if f.type in ["title","rich_text","email","phone","url","number","date"] %}
+
+          {% if f.type == "rich_text" %}
+            <textarea class="nf-textarea" id="{{ f.id }}" name="{{ f.id }}" rows="4" data-field="{{ f.notion_prop }}"></textarea>
+          {% elif f.type == "date" %}
+            <input class="nf-input" id="{{ f.id }}" name="{{ f.id }}" type="date" data-field="{{ f.notion_prop }}" />
+          {% elif f.type == "number" %}
+            <input class="nf-input" id="{{ f.id }}" name="{{ f.id }}" type="number" step="any" data-field="{{ f.notion_prop }}" />
+          {% else %}
+            <input class="nf-input" id="{{ f.id }}" name="{{ f.id }}" type="{{ 'text' if f.type in ['title','rich_text'] else f.type }}" data-field="{{ f.notion_prop }}"/>
+          {% endif %}
+
+        {% elif f.type == "datetime" %}
+          <input class="nf-input" id="{{ f.id }}" name="{{ f.id }}" type="datetime-local" data-field="{{ f.notion_prop }}" />
+
+        {% elif f.type == "select" or f.type == "status" %}
+          <select class="nf-select" id="{{ f.id }}" name="{{ f.id }}" data-field="{{ f.notion_prop }}">
+            <option value="">-- select --</option>
+            {% for opt in f.options or [] %}
+              <option value="{{ opt }}">{{ opt }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif f.type == "multi_select" %}
+          <select class="nf-select" id="{{ f.id }}" name="{{ f.id }}" multiple data-field="{{ f.notion_prop }}">
+            {% for opt in f.options or [] %}
+              <option value="{{ opt }}">{{ opt }}</option>
+            {% endfor %}
+          </select>
+
+        {% elif f.type == "checkbox" %}
+          <label class="nf-opt" for="{{ f.id }}">
+            <input class="nf-check" id="{{ f.id }}" name="{{ f.id }}" type="checkbox" data-field="{{ f.notion_prop }}" />
+            <span>{{ f.inline_label or "I consent to it" }}</span>
+          </label>
+
+        {% elif f.type == "files" %}
+          <input class="nf-file" id="{{ f.id }}" name="{{ f.id }}" type="file" multiple data-field="{{ f.notion_prop }}" />
+          <div class="nf-help">Up to {{ f.max_files or 10 }} files, {{ f.max_file_size_mb or 100 }} MB each.</div>
+
+        {% elif f.type == "relation_session" %}
+          {# Support page-specific session keys; default to 'notion_page_id' #}
+          {% set sid = session.get(f.session_key or 'notion_page_id') %}
+          <div class="nf-help">
+            {% if sid %}
+              {% if f.notion_prop in ["Customer Name", "Full Name"] %}
+                Linked to borrower: <strong>{{ borrower_name or sid }}</strong>
+              {% elif f.notion_prop == "Field Verification" %}
+                Linked to Field Verification page: <code>{{ sid }}</code>
+              {% elif f.notion_prop == "Loan Application" %}
+                Linked to Loan Application page: <code>{{ sid }}</code>
+              {% else %}
+                Linked: <code>{{ sid }}</code>
+              {% endif %}
+            {% else %}
+              Link missing for {{ f.name }} — please complete the earlier steps.
+            {% endif %}
+          </div>
+
+        {% endif %}  {# <-- CLOSE the big type-if chain ALWAYS before leaving the field #}
+
+        {# ---------- ERRORS / HELP ---------- #}
+        {% if errors.get(f.id) %}
+          <div class="nf-error">{{ errors.get(f.id) }}</div>
+        {% elif f.help %}
+          <div class="nf-help">{{ f.help }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <div class="nf-actions">
+      <button class="nf-btn" type="submit">Submit</button>
+    </div>
+  </form>
+
+  <!-- Behavior: Timestamp & GPS autofill + Employment/Agriculture logic -->
+  <script>
+    (function() {
+      // ---------- Helpers ----------
+      const $ = (sel) => document.querySelector(sel);
+      const $$ = (names) => names.map(n => document.querySelector(`[data-field="${n}"]`)).filter(Boolean);
+
+      function toDatetimeLocalString(d) {
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+
+      function setReadOnly(el, readonly) {
+        if (!el) return;
+        if (el.tagName === 'SELECT') el.disabled = !!readonly;
+        else readonly ? el.setAttribute('readonly', 'readonly') : el.removeAttribute('readonly');
+        el.classList.toggle('nf-disabled', !!readonly);
+      }
+
+      function setValueSmart(el, val) {
+        if (!el) return;
+        if (el.tagName === 'SELECT') { el.value = ''; }
+        else if (el.type === 'number') { el.value = ''; }
+        else { el.value = val; }
+      }
+
+      function disableWithNA(elements) { elements.forEach(el => { setValueSmart(el, "N/A"); setReadOnly(el, true); }); }
+      function enableAndClear(elements) { elements.forEach(el => { setReadOnly(el, false); if (el.value === "N/A") el.value = ""; }); }
+
+      // ---------- Auto-fill Timestamp ----------
+      const tsEl = $('[data-field="Timestamp"]');
+      if (tsEl && !tsEl.value) tsEl.value = toDatetimeLocalString(new Date());
+
+      // ---------- Auto-fill GPS ----------
+      const gpsEl = $('[data-field="GPS Coordinates"]');
+      function fillGps() {
+        if (!gpsEl || gpsEl.value) return;
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+          pos => { gpsEl.value = `${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`; },
+          err => { console.warn("Geolocation error:", err && err.message ? err.message : err); },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        );
+      }
+      fillGps();
+      const link = $('#nf-geolocate');
+      if (link) link.addEventListener('click', e => { e.preventDefault(); if (gpsEl) gpsEl.value=''; fillGps(); });
+
+      // ---------- Employment / Agriculture logic (only affects Page 2; harmless elsewhere) ----------
+      const primaryIncomeEl = $('[data-field="Primary Source of Income"]');
+      if (primaryIncomeEl) {
+        const fullBusinessFields = [
+          "Business Name", "Business Type", "Years in Operation", "Monthly Sales (₹)",
+          "Average Profit (₹)", "Number of Employees", "Inventory / Stock Value (₹)",
+          "Assets Observed", "Livestock Owned", "Vehicles Owned", "Agricultural Land (Acres)", "Other Assets"
+        ];
+        const businessOnlyFields = [
+          "Business Name", "Business Type", "Years in Operation", "Monthly Sales (₹)",
+          "Average Profit (₹)", "Number of Employees", "Inventory / Stock Value (₹)",
+          "Assets Observed", "Vehicles Owned", "Other Assets"
+        ];
+        const fullEls = $$(fullBusinessFields);
+        const businessOnlyEls = $$(businessOnlyFields);
+        const agKeepEls = $$(["Livestock Owned", "Agricultural Land (Acres)"]);
+
+        function updateBusinessFields() {
+          const v = primaryIncomeEl.value;
+          if (v === "Employment") {
+            disableWithNA(fullEls);
+          } else if (v === "Agriculture") {
+            disableWithNA(businessOnlyEls);
+            enableAndClear(agKeepEls);
+          } else {
+            enableAndClear(fullEls);
+          }
+        }
+        primaryIncomeEl.addEventListener("change", updateBusinessFields);
+        updateBusinessFields();
+      }
+    })();
+  </script>
+
+{% endblock %}

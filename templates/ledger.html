@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+
+  <section class="nf-header">
+    <h1 class="nf-title">Daily Corpus Tracker</h1>
+    <p class="nf-sub">
+      Build from Notion → Disbursements & Collections · Last updated: {{ meta.last_updated }}
+    </p>
+  </section>
+
+  <!-- Filters -->
+  <div class="nf-field">
+    <form method="get" action="{{ url_for('export_ledger') }}" style="display:grid; grid-template-columns: repeat(4, minmax(140px, 1fr)) auto; gap:12px; align-items:end;">
+      <div>
+        <label class="nf-label">From</label>
+        <input class="nf-input" type="date" name="start" value="{{ meta.start }}">
+      </div>
+      <div>
+        <label class="nf-label">To</label>
+        <input class="nf-input" type="date" name="end" value="{{ meta.end }}">
+      </div>
+      <div>
+        <label class="nf-label">Starting Corpus</label>
+        <input class="nf-input" type="number" name="start_corpus" step="any" value="{{ meta.start_corpus }}">
+      </div>
+      <div>
+        <label class="nf-label">&nbsp;</label>
+        <button class="nf-btn" type="submit">Refresh</button>
+      </div>
+      <div>
+        <label class="nf-label">&nbsp;</label>
+        <a class="nf-btn" href="{{ url_for('export_ledger', start=meta.start, end=meta.end, start_corpus=meta.start_corpus, download=1) }}">Download Excel</a>
+      </div>
+    </form>
+  </div>
+
+  <!-- Table -->
+  <div class="nf-field" style="overflow:auto;">
+    {% if table is not none and table.shape[0] > 0 %}
+      <table style="width:100%; border-collapse:collapse;">
+        <thead>
+          <tr>
+            {% for col in table.columns %}
+              <th style="text-align:left; padding:10px; border-bottom:1px solid var(--border); white-space:nowrap;">{{ col }}</th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for _, row in table.iterrows() %}
+            <tr>
+              {% for col in table.columns %}
+                <td style="padding:8px 10px; border-bottom:1px solid var(--border); white-space:nowrap;">
+                  {% if col == "Date" %}
+                    {{ row[col] }}
+                  {% else %}
+                    {{ "{:,.2f}".format(row[col]) if row[col] == row[col] else "" }}
+                  {% endif %}
+                </td>
+              {% endfor %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <div class="nf-help" style="margin-top:8px;">
+        Rows: {{ meta.row_count }} · Starting Corpus: {{ "{:,.2f}".format(meta.start_corpus) }}
+      </div>
+    {% else %}
+      <div class="nf-help">No rows found for the selected range.</div>
+    {% endif %}
+  </div>
+
+{% endblock %}
