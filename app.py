@@ -287,29 +287,28 @@ def resolve_wkhtmltopdf_path() -> str | None:
             return c
     return None
 
+def ensure_chromium_installed():
+    chromium_path = "/opt/render/.cache/ms-playwright/chromium-1129/chrome-linux/chrome"
+    if not os.path.exists(chromium_path):
+        # install at runtime
+        subprocess.run(["python", "-m", "playwright", "install", "chromium"], check=True)
+    return chromium_path
+
 def html_to_pdf_bytes(html_str: str) -> bytes:
-    # Always use Playwright Chromium for PDF rendering
-    with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".html", dir=os.getcwd(), delete=False, encoding="utf-8"
-    ) as f:
+    ensure_chromium_installed()
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".html", delete=False, encoding="utf-8") as f:
         f.write(html_str)
         tmp_html = f.name
 
-    pdf_bytes = b""
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=["--no-sandbox"])  # --no-sandbox helps in Render/Docker
+        browser = p.chromium.launch(args=["--no-sandbox"])
         page = browser.new_page()
         page.goto("file://" + tmp_html, wait_until="domcontentloaded", timeout=60000)
         pdf_bytes = page.pdf(format="A4", print_background=True)
         browser.close()
 
-    try:
-        os.remove(tmp_html)
-    except Exception:
-        pass
-
+    os.remove(tmp_html)
     return pdf_bytes
-
 
 # -------------------------------------------------------------------
 # KFS rendering (HTML template + logo)
