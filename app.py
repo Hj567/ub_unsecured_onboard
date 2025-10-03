@@ -18,6 +18,7 @@ import requests
 from flask import url_for
 from playwright.sync_api import sync_playwright
 import tempfile, os
+import subprocess
 # -------------------------------------------------------------------
 # Load env + Flask
 # -------------------------------------------------------------------
