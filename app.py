@@ -755,14 +755,18 @@ def kfs_sign_submit():
         data = fetch_loan_page_values(loan_id)
         logo_http = url_for("static", filename="ub-portfolio-logo.png", _external=True)
         html = render_kfs_html(data, extra={"logo_src": logo_http})
-        pdf  = html_to_pdf_bytes(html)
-        sig_png   = decode_data_url_png(sig_data_url)
+        print("Start KFS sign submit")
+        pdf = html_to_pdf_bytes(html)
+        print("PDF generated")
+        sig_png = decode_data_url_png(sig_data_url)
+        print("Signature decoded")
         attn_text = f"Signed by {signer_name} <{signer_email}> at {attn_ts_utc} UTC · IP {attn_ip}"
         # KFS: fixed point (can be different from contract)
         signed_pdf = stamp_signature_at_point(pdf, sig_png, attn_text,
                                               page_index=KFS_SIG_PAGE_INDEX,
                                               x_pt=KFS_SIG_X_PT, y_pt=KFS_SIG_Y_PT,
                                               width_pt=KFS_SIG_WIDTH_PT)
+        print("Signature stamped")
         pdf_sha256 = hashlib.sha256(signed_pdf).hexdigest()
         fname = f"signed_kfs_{data.get('Loan_Application_ID') or loan_id}.pdf"
         # Upload file
