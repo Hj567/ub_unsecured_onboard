@@ -1225,7 +1225,8 @@ def debug_notion_props(which):
 # Links + run
 # -------------------------------------------------------------------
 if __name__ == "__main__":
-    host = os.getenv("HOST", "127.0.0.1"); port = int(os.getenv("PORT", "5000"))
+    host = "0.0.0.0"  # Always bind to all interfaces
+    port = int(os.getenv("PORT", "10000"))  # Render provides PORT
     url = f"http://{host}:{port}/"
     print("\n================= Flask Dev Server =================")
     print(f"→ Page 1 (Borrower): {url}")
@@ -1237,4 +1238,5 @@ if __name__ == "__main__":
     print(f"→ Contract Sign:     {url}contract-sign")
     print(f"→ Ledger:            {url}export-ledger")
     print("====================================================\n", flush=True)
-    app.run(host=host, port=port, debug=True)
+    app.run(host=host, port=port, debug=False)
+
