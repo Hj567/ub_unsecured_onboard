@@ -3,7 +3,7 @@ gunicorn==21.2.0
 python-dotenv==1.0.1
 requests==2.32.3
 
-pandas==2.2.2
+pandas
 numpy==1.26.4
 xlsxwriter==3.2.0
 
