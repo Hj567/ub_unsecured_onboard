@@ -294,7 +294,12 @@ def html_to_pdf_bytes(html_str: str) -> bytes:
             html_str,
             False,
             configuration=cfg,
-            options={"quiet": "", "enable-local-file-access": ""}
+            options = {
+                "quiet": "",
+                "enable-local-file-access": "",
+                "load-error-handling": "ignore",  # don’t hang on missing CSS/img
+                "disable-external-links": "",
+                "disable-javascript": "",}
         )
 
     # Fallback: Playwright (Chromium)
