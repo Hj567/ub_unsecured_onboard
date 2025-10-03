@@ -16,7 +16,8 @@ import pandas as pd
 import numpy as np
 import requests
 from flask import url_for
-
+from playwright.sync_api import sync_playwright
+import tempfile, os
 # -------------------------------------------------------------------
 # Load env + Flask
 # -------------------------------------------------------------------
@@ -287,44 +288,26 @@ def resolve_wkhtmltopdf_path() -> str | None:
     return None
 
 def html_to_pdf_bytes(html_str: str) -> bytes:
-    wkhtml = resolve_wkhtmltopdf_path()
-    if wkhtml:
-        cfg = pdfkit.configuration(wkhtmltopdf=wkhtml)
-        return pdfkit.from_string(
-            html_str,
-            False,
-            configuration=cfg,
-            options = {
-                "quiet": "",
-                "enable-local-file-access": "",
-                "load-error-handling": "ignore",  # don’t hang on missing CSS/img
-                "disable-external-links": "",
-                "disable-javascript": "",}
-        )
-
-    # Fallback: Playwright (Chromium)
-    from playwright.sync_api import sync_playwright
+    # Always use Playwright Chromium for PDF rendering
     with tempfile.NamedTemporaryFile(
-        mode="w", suffix=".html", dir=ROOT_DIR, delete=False, encoding="utf-8"
+        mode="w", suffix=".html", dir=os.getcwd(), delete=False, encoding="utf-8"
     ) as f:
         f.write(html_str)
         tmp_html = f.name
 
-    file_url = "file://" + tmp_html
-
+    pdf_bytes = b""
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=["--no-sandbox"])  # --no-sandbox helps in Render/Docker
         page = browser.new_page()
-        # wait only for DOMContentLoaded, not full load
         page.goto("file://" + tmp_html, wait_until="domcontentloaded", timeout=60000)
         pdf_bytes = page.pdf(format="A4", print_background=True)
         browser.close()
-
 
     try:
         os.remove(tmp_html)
     except Exception:
         pass
+
     return pdf_bytes
 
 
