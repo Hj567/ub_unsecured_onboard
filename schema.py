@@ -39,4 +39,27 @@ FIELDS = [
 
     # DB expects RICH TEXT here
     {"name": "Earning Members", "type": "rich_text", "notion_prop": "Earning Members"},
+
+    {
+        "name": "Account Name",
+        "id": "Account Name",
+        "notion_prop": "Account Name",   # must exactly match Notion property
+        "type": "rich_text",
+        "required": True
+    },
+    {
+        "name": "IFSC Code",
+        "id": "IFSC Code",
+        "notion_prop": "IFSC Code",      # must exactly match Notion property
+        "type": "rich_text",
+        "required": True
+    },
+    {
+        "name": "Account Number",
+        "id": "Account Number",
+        "notion_prop": "Account Number", # must exactly match Notion property
+        "type": "number",             # use rich_text to preserve leading zeros / long numbers
+        "required": True
+    },
+
 ]

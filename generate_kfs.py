@@ -69,8 +69,23 @@ def render_kfs_html(data: dict, output_basename="loan_kfs"):
         f.write(rendered_html)
     print(f"✅ HTML generated: {html_file}")
 
+def debug_properties_once(p, prefix="Processing"):
+    # Prints available props and types once per page; filter with a prefix to keep it readable
+    lines = []
+    for k, v in p.items():
+        if prefix.lower() in k.lower():
+            lines.append(f"- {k} → {v.get('type')}")
+    if lines:
+        print("🔎 Property names (filtered):")
+        print("\n".join(lines))
+
 def generate_kfs_docs():
     loans = fetch_loan_data()
+    for idx, loan in enumerate(loans):
+        p = loan["properties"]
+
+        # Debug what we actually have for "Processing*"
+        debug_properties_once(p, prefix="Processing")
     for idx, loan in enumerate(loans):
         p = loan["properties"]
         def g(field): return parse_field(p.get(field, {}))
@@ -90,7 +105,7 @@ def generate_kfs_docs():
             "Total_Repayable_Amount": g("Outstanding Amount "),
             "First_EMI_Date": g("Start Date"),
             "Last_EMI_Date": g("End Date"),
-            "Processing_Fee": g("Processing_Fee"),
+            "Processing_Fee": g("Processing Fee Amount"),
             "Insurance_Fee": g("Insurance_Fee"),
             "Stamp_Duty": g("Stamp_Duty"),
             "Foreclosure_Charges": g("Foreclosure_Clauses"),

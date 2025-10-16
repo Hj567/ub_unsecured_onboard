@@ -98,7 +98,7 @@ def query_notion_db(db_id: str, filter_block=None, sorts=None, page_size=100):
         if cursor:
             payload["start_cursor"] = cursor
         r = requests.post(f"{NOTION_API}/databases/{db_id}/query",
-                          headers=notion_headers(), json=payload, timeout=30)
+                          headers=notion_headers(), json=payload, timeout=90)
         if r.status_code >= 300:
             raise RuntimeError(f"Notion query failed: {r.status_code} {r.text}")
         data = r.json()
@@ -139,7 +139,7 @@ def parse_field(prop: dict):
     return ""
 
 def fetch_loan_page_values(loan_page_id: str) -> dict:
-    r = requests.get(f"{NOTION_API}/pages/{loan_page_id}", headers=notion_headers(), timeout=30)
+    r = requests.get(f"{NOTION_API}/pages/{loan_page_id}", headers=notion_headers(), timeout=90)
     if r.status_code >= 300:
         raise RuntimeError(f"Get page failed: {r.status_code} {r.text}")
     p = r.json().get("properties", {})
@@ -151,7 +151,7 @@ def fetch_loan_page_values(loan_page_id: str) -> dict:
         "Loan_Type": g("Loan Type"),
         "Sanction_Date": g("Sanction Date"),
         "Amount_Sanctioned": g("Amount Sanctioned"),
-        "Tenure": g("Tenure (Months)"),
+        "Tenure": g("Tenure (Days)"),
         "Interest_Rate": g("Interest Rate (Yearly)"),
         "EMI_Frequency": g("Repayment Frequency") or g("Frequency"),
         "EMI_Amount": g("EMI Amount"),
@@ -336,7 +336,7 @@ def form():
                 r = requests.post(f"{NOTION_API}/pages", headers=notion_headers(), json={
                     "parent": {"database_id": NOTION_DATABASE_ID},
                     "properties": props
-                }, timeout=30)
+                }, timeout=90)
                 if r.status_code >= 300:
                     errors["__all__"] = f"Notion error: {r.status_code} {r.text}"
                 else:
@@ -393,7 +393,7 @@ def form_page2():
                 if not errors:
                     r = requests.post(f"{NOTION_API}/pages", headers=notion_headers(), json={
                         "parent": {"database_id": NOTION_DATABASE_ID_PAGE2}, "properties": props
-                    }, timeout=30)
+                    }, timeout=90)
                     if r.status_code >= 300:
                         errors["__all__"] = f"Notion error: {r.status_code} {r.text}"
                     else:
@@ -434,7 +434,7 @@ def form_page3():
                 if not errors:
                     r = requests.post(f"{NOTION_API}/pages", headers=notion_headers(), json={
                         "parent":{"database_id": NOTION_DATABASE_ID_PAGE3}, "properties": props
-                    }, timeout=30)
+                    }, timeout=90)
                     if r.status_code >= 300:
                         errors["__all__"] = f"Notion error: {r.status_code} {r.text}"
                     else:
@@ -480,7 +480,7 @@ def form_page4():
                         v = clean.get(fid); props[name] = {"rich_text":[{"type":"text","text":{"content": str(v) if v is not None else ""}}]}
                 r = requests.post(f"{NOTION_API}/pages", headers=notion_headers(), json={
                     "parent":{"database_id": NOTION_DATABASE_ID_PAGE4}, "properties": props
-                }, timeout=30)
+                }, timeout=90)
                 if r.status_code >= 300:
                     errors["__all__"] = f"Notion error: {r.status_code} {r.text}"
                 else:
@@ -540,7 +540,7 @@ def kfs_sign_submit():
         fname = f"signed_kfs_{data.get('Loan_Application_ID') or loan_id}.pdf"
         # Upload
         init = requests.post(f"{NOTION_API}/file_uploads", headers=notion_headers(),
-                             json={"filename": fname, "mode":"single_part"}, timeout=30)
+                             json={"filename": fname, "mode":"single_part"}, timeout=90)
         init.raise_for_status()
         up_id = init.json()["id"]
         send = requests.post(f"{NOTION_API}/file_uploads/{up_id}/send",
@@ -559,7 +559,7 @@ def kfs_sign_submit():
                                    "Signed At": {"date":{"start": attn_ts_utc}},
                                    "KFS SHA256": {"rich_text":[{"type":"text","text":{"content": pdf_sha256}}]},
                                    "KFS Signed": {"checkbox": True}
-                               }}, timeout=30)
+                               }}, timeout=90)
         patch.raise_for_status()
     except Exception as e:
         session["kfs_error"] = f"KFS signing/upload failed: {e}"
@@ -593,7 +593,7 @@ def form_page5():
             if not errors:
                 r = requests.post(f"{NOTION_API}/pages", headers=notion_headers(),
                                   json={"parent":{"database_id": NOTION_DATABASE_ID_PAGE5},
-                                        "properties": props}, timeout=30)
+                                        "properties": props}, timeout=90)
                 if r.status_code >= 300:
                     errors["__all__"] = f"Notion error: {r.status_code} {r.text}"
                 else:
@@ -648,7 +648,7 @@ def safe_patch_contract_properties(loan_id: str, fname: str, up_id: str,
                                    attn_ip: str, attn_ts_utc: str):
     """Patch only properties that exist on page → avoids Notion 400."""
     # Fetch page props
-    page_info = requests.get(f"{NOTION_API}/pages/{loan_id}", headers=notion_headers(), timeout=30)
+    page_info = requests.get(f"{NOTION_API}/pages/{loan_id}", headers=notion_headers(), timeout=90)
     page_info.raise_for_status()
     props = page_info.json().get("properties", {})
     def has_prop(name, ptype=None):
@@ -680,7 +680,7 @@ def safe_patch_contract_properties(loan_id: str, fname: str, up_id: str,
     payload = {"properties": patch_props}
     print("Patch payload (contract):", json.dumps(payload, indent=2))
     patch = requests.patch(f"{NOTION_API}/pages/{loan_id}",
-                           headers=notion_headers(), json=payload, timeout=30)
+                           headers=notion_headers(), json=payload, timeout=90)
     if patch.status_code >= 400:
         print("❌ Notion patch error:", patch.status_code, patch.text)
     patch.raise_for_status()
@@ -702,7 +702,7 @@ def contract_sign_submit():
                 "sorts": [{"timestamp": "created_time", "direction": "descending"}]
             }
             r = requests.post(f"{NOTION_API}/databases/{NOTION_DATABASE_ID_PAGE4}/query",
-                              headers=notion_headers(), json=query, timeout=30)
+                              headers=notion_headers(), json=query, timeout=90)
             r.raise_for_status()
             results = r.json().get("results", [])
             if results:
@@ -754,7 +754,7 @@ def contract_sign_submit():
 
         fname = f"signed_loan_agreement_{loan_id}.pdf"
         init = requests.post(f"{NOTION_API}/file_uploads", headers=notion_headers(),
-                             json={"filename": fname, "mode": "single_part"}, timeout=30)
+                             json={"filename": fname, "mode": "single_part"}, timeout=90)
         init.raise_for_status()
         up_id = init.json()["id"]
         send = requests.post(f"{NOTION_API}/file_uploads/{up_id}/send",
@@ -853,7 +853,7 @@ def export_ledger():
 @app.route("/debug/loan-app-props")
 def debug_loan_app_props():
     try:
-        r = requests.get(f"{NOTION_API}/databases/{NOTION_DATABASE_ID_PAGE4}", headers=notion_headers(), timeout=30)
+        r = requests.get(f"{NOTION_API}/databases/{NOTION_DATABASE_ID_PAGE4}", headers=notion_headers(), timeout=90)
         r.raise_for_status()
         props = r.json().get("properties", {})
         lines = [f"{k} → {v.get('type')}" for k, v in props.items()]

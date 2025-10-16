@@ -20,7 +20,9 @@ FIELDS_PAGE4 = [
 
     {"name": "Start Date", "type": "date", "notion_prop": "Start Date"},
 
-    {"name": "Tenure (Months)", "type": "number", "format": "int", "notion_prop": "Tenure (Months)"},
+    {"name": "Tenure (Days)", "type": "number", "format": "int", "notion_prop": "Tenure (Days)"},
+
+    {"name": "Processing Fees (%)", "type": "number", "format": "int", "notion_prop": "Processing Fees (%)"},
 
     {"name": "Credit Officer Assigned", "type": "select", "notion_prop": "Credit Officer Assigned",
      "options": ["Name 1", "Name 2"]},  # adjust options to match your Notion property
