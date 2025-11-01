@@ -14,6 +14,10 @@ FIELDS_PAGE2 = [
     {"name": "Address Verified", "type": "select", "notion_prop": "Address Verified",
      "options": ["Yes", "No"]},
 
+     {"name": "Account Number", "type": "number", "notion_prop": "Account Number"},
+    
+    {"name": "IFSC Code", "type": "rich_text", "notion_prop": "IFSC Code"},
+
     {"name": "Number of Family Members", "type": "number", "format": "int", "notion_prop": "Number of Family Members"},
 
     {"name": "Number of Earning Members", "type": "number", "format": "int", "notion_prop": "Number of Earning Members"},
@@ -93,4 +97,5 @@ FIELDS_PAGE2 = [
 
     {"name": "Verification Logged in LMS", "type": "checkbox", "notion_prop": "Verification Logged in LMS",
      "inline_label": "I confirm the verification is logged in LMS"},
+
 ]
