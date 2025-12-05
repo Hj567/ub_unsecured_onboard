@@ -142,14 +142,20 @@ def fetch_loan_page_values(loan_page_id: str) -> dict:
     r = requests.get(f"{NOTION_API}/pages/{loan_page_id}", headers=notion_headers(), timeout=90)
     if r.status_code >= 300:
         raise RuntimeError(f"Get page failed: {r.status_code} {r.text}")
+
     p = r.json().get("properties", {})
     g = lambda k: parse_field(p.get(k, {}))
+
     return {
         "Loan_Application_ID": g("Loan Application ID"),
+
+        # ORIGINAL BORROWER NAME WILL BE OVERRIDDEN BY SIGNER NAME
         "Borrower_Name": g("Full Name"),
+
         "Co_Borrower_Name": g("Co-borrower"),
         "Loan_Type": g("Loan Type"),
         "Sanction_Date": g("Sanction Date"),
+
         "Amount_Sanctioned": g("Amount Sanctioned"),
         "Tenure": g("Tenure (Days)"),
         "Interest_Rate": g("Interest Rate (Yearly)"),
@@ -158,16 +164,24 @@ def fetch_loan_page_values(loan_page_id: str) -> dict:
         "Total_Repayable_Amount": g("Outstanding Amount "),
         "First_EMI_Date": g("Start Date"),
         "Last_EMI_Date": g("End Date"),
+
+        # OLD PROCESSING FEE (if present)
         "Processing_Fee": g("Processing_Fee"),
+
+        # NEW field pulled from Notion (Formula column)
+        "Processing_Fee_Amount": g("Processing Fee Amount"),
+
         "Insurance_Fee": g("Insurance_Fee"),
         "Stamp_Duty": g("Stamp_Duty"),
         "Foreclosure_Charges": g("Foreclosure_Clauses"),
+
         "Disbursement_Date": g("Disbursement Date"),
         "Bank_Account_Details": g("Bank_Account_Details"),
         "Mode": g("Mode"),
         "Mandate_Status": g("Mandate_Status"),
         "Credit_Officer_Name": g("Credit Officer Assigned"),
     }
+
 
 # -------------------------------------------------------------------
 # HTML → PDF (Playwright)
@@ -497,21 +511,44 @@ def form_page4():
 # KFS preview + submit
 # -------------------------------------------------------------------
 @app.route("/kfs-sign", methods=["GET"])
+@app.route("/kfs-sign", methods=["GET"])
 def kfs_sign():
     loan_id = session.get("loan_application_page_id")
-    if not loan_id: return redirect(url_for("form_page4"))
+    if not loan_id:
+        return redirect(url_for("form_page4"))
+
     try:
         data = fetch_loan_page_values(loan_id)
+
+        # ⭐ If user already typed name earlier in session, overwrite for preview
+        signer_preview_name = session.get("borrower_name") or None
+        if signer_preview_name:
+            data["Borrower_Name"] = signer_preview_name
+
+        # ⭐ Also show correct Processing Fee formula in preview
+        if data.get("Processing_Fee_Amount"):
+            data["Processing_Fee"] = data["Processing_Fee_Amount"]
+
         logo_http = url_for("static", filename="ub-portfolio-logo.png")
         kfs_html = render_kfs_html(data, extra={"logo_src": logo_http})
+
     except Exception as e:
         session["kfs_error"] = f"KFS render failed: {e}"
         return redirect(url_for("form_page5"))
-    sign_ctx = {"ip": request.headers.get("X-Forwarded-For", request.remote_addr or ""),
-                "now_utc": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}
-    return render_template("sign_kfs.html", title="Review & Sign KFS",
-                           kfs_html=kfs_html, borrower_name=session.get("borrower_name"),
-                           sign_ctx=sign_ctx)
+
+    sign_ctx = {
+        "ip": request.headers.get("X-Forwarded-For", request.remote_addr or ""),
+        "now_utc": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    return render_template(
+        "sign_kfs.html",
+        title="Review & Sign KFS",
+        kfs_html=kfs_html,
+        borrower_name=data["Borrower_Name"],
+        sign_ctx=sign_ctx
+    )
+
 
 @app.route("/kfs-sign/submit", methods=["POST"])
 def kfs_sign_submit():
@@ -527,15 +564,37 @@ def kfs_sign_submit():
         return redirect(url_for("kfs_sign"))
     try:
         data = fetch_loan_page_values(loan_id)
+
+        # ------------------------------------------------------------------
+        # ⭐ OVERRIDE BORROWER NAME WITH SIGNER NAME
+        # ------------------------------------------------------------------
+        data["Borrower_Name"] = signer_name
+
+        # ------------------------------------------------------------------
+        # ⭐ USE THE NEW PROCESSING FEE FORMULA FIELD IF AVAILABLE
+        # ------------------------------------------------------------------
+        if data.get("Processing_Fee_Amount"):
+            data["Processing_Fee"] = data["Processing_Fee_Amount"]
+        # else fallback to whatever was already there
+
+        # ------------------------------------------------------------------
+        # Render KFS with corrected data
+        # ------------------------------------------------------------------
         logo_http = url_for("static", filename="ub-portfolio-logo.png", _external=True)
         html = render_kfs_html(data, extra={"logo_src": logo_http})
+
         pdf = html_to_pdf_bytes(html)
         sig_png = decode_data_url_png(sig_data_url)
         attn_text = f"Signed by {signer_name} <{signer_email}> at {attn_ts_utc} UTC · IP {attn_ip}"
-        signed_pdf = stamp_signature_at_point(pdf, sig_png, attn_text,
-                                              page_index=KFS_SIG_PAGE_INDEX,
-                                              x_pt=KFS_SIG_X_PT, y_pt=KFS_SIG_Y_PT,
-                                              width_pt=KFS_SIG_WIDTH_PT)
+
+        signed_pdf = stamp_signature_at_point(
+            pdf, sig_png, attn_text,
+            page_index=KFS_SIG_PAGE_INDEX,
+            x_pt=KFS_SIG_X_PT,
+            y_pt=KFS_SIG_Y_PT,
+            width_pt=KFS_SIG_WIDTH_PT
+        )
+
         pdf_sha256 = hashlib.sha256(signed_pdf).hexdigest()
         fname = f"signed_kfs_{data.get('Loan_Application_ID') or loan_id}.pdf"
         # Upload
