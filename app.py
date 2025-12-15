@@ -138,6 +138,13 @@ def parse_field(prop: dict):
         return f"{pfx}{num}"
     return ""
 
+def format_inr_number(x: float) -> str:
+    # simple formatting; keeps it consistent in templates
+    try:
+        return f"{x:,.2f}".rstrip("0").rstrip(".")
+    except:
+        return str(x)
+        
 def fetch_loan_page_values(loan_page_id: str) -> dict:
     r = requests.get(f"{NOTION_API}/pages/{loan_page_id}", headers=notion_headers(), timeout=90)
     if r.status_code >= 300:
@@ -146,12 +153,9 @@ def fetch_loan_page_values(loan_page_id: str) -> dict:
     p = r.json().get("properties", {})
     g = lambda k: parse_field(p.get(k, {}))
 
-    return {
+    data = {
         "Loan_Application_ID": g("Loan Application ID"),
-
-        # ORIGINAL BORROWER NAME WILL BE OVERRIDDEN BY SIGNER NAME
         "Borrower_Name": g("Full Name"),
-
         "Co_Borrower_Name": g("Co-borrower"),
         "Loan_Type": g("Loan Type"),
         "Sanction_Date": g("Sanction Date"),
@@ -161,14 +165,14 @@ def fetch_loan_page_values(loan_page_id: str) -> dict:
         "Interest_Rate": g("Interest Rate (Yearly)"),
         "EMI_Frequency": g("Repayment Frequency") or g("Frequency"),
         "EMI_Amount": g("EMI Amount"),
+
+        # this will be overwritten below
         "Total_Repayable_Amount": g("Outstanding Amount "),
+
         "First_EMI_Date": g("Start Date"),
         "Last_EMI_Date": g("End Date"),
 
-        # OLD PROCESSING FEE (if present)
         "Processing_Fee": g("Processing_Fee"),
-
-        # NEW field pulled from Notion (Formula column)
         "Processing_Fee_Amount": g("Processing Fee Amount"),
 
         "Insurance_Fee": g("Insurance_Fee"),
@@ -181,6 +185,15 @@ def fetch_loan_page_values(loan_page_id: str) -> dict:
         "Mandate_Status": g("Mandate_Status"),
         "Credit_Officer_Name": g("Credit Officer Assigned"),
     }
+
+    # ✅ Compute Total_Repayable_Amount = EMI_Amount * Tenure
+    emi = _parse_money_to_float(data.get("EMI_Amount"))
+    tenure = int(_parse_money_to_float(data.get("Tenure")))  # tenure as count
+    total = emi * tenure
+    data["Total_Repayable_Amount"] = format_inr_number(total)
+
+    return data
+
 
 
 # -------------------------------------------------------------------
@@ -209,6 +222,91 @@ def html_to_pdf_bytes(html_str: str) -> bytes:
 # -------------------------------------------------------------------
 # Rendering helpers
 # -------------------------------------------------------------------
+
+def _parse_money_to_float(x) -> float:
+    """
+    Accepts: 500000, "500000", "5,00,000", "₹5,00,000", "500000.75"
+    Returns: 500000.75 (float) or 0.0 if not parseable
+    """
+    if x is None:
+        return 0.0
+    if isinstance(x, (int, float)):
+        return float(x)
+    s = str(x).strip()
+    if not s:
+        return 0.0
+    # keep digits and dot only
+    s = re.sub(r"[^0-9.]", "", s)
+    if s.count(".") > 1:
+        # if messy, remove all dots except last
+        parts = s.split(".")
+        s = "".join(parts[:-1]) + "." + parts[-1]
+    try:
+        return float(s) if s else 0.0
+    except:
+        return 0.0
+
+
+_ONES = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"]
+_TEENS = ["Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"]
+_TENS = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+
+def _two_digit_words(n: int) -> str:
+    if n == 0:
+        return ""
+    if n < 10:
+        return _ONES[n]
+    if 10 <= n < 20:
+        return _TEENS[n - 10]
+    t, o = divmod(n, 10)
+    return _TENS[t] + ("" if o == 0 else f" {_ONES[o]}")
+
+def _three_digit_words(n: int) -> str:
+    h, r = divmod(n, 100)
+    parts = []
+    if h:
+        parts.append(f"{_ONES[h]} Hundred")
+    if r:
+        parts.append(_two_digit_words(r))
+    return " ".join(parts).strip()
+
+def indian_number_to_words(n: int) -> str:
+    if n == 0:
+        return "Zero"
+    if n < 0:
+        return "Minus " + indian_number_to_words(-n)
+
+    # Indian groups: last 3 digits, then 2-digit groups (Thousand, Lakh, Crore, Arab, Kharab...)
+    scales = ["", "Thousand", "Lakh", "Crore", "Arab", "Kharab"]
+    parts = []
+
+    last3 = n % 1000
+    n //= 1000
+    if last3:
+        parts.append(_three_digit_words(last3))
+
+    scale_idx = 1
+    while n > 0 and scale_idx < len(scales):
+        grp = n % 100
+        n //= 100
+        if grp:
+            parts.append(f"{_two_digit_words(grp)} {scales[scale_idx]}".strip())
+        scale_idx += 1
+
+    return " ".join(reversed([p for p in parts if p])).strip()
+
+def amount_to_inr_words(amount_any) -> str:
+    amt = _parse_money_to_float(amount_any)
+    rupees = int(amt)
+    paise = int(round((amt - rupees) * 100))
+
+    rupee_words = indian_number_to_words(rupees)
+    if paise > 0:
+        paise_words = indian_number_to_words(paise)
+        return f"{rupee_words} Rupees and {paise_words} Paise Only"
+    return f"{rupee_words} Rupees Only"
+
+
 def render_kfs_html(data: dict, extra: dict | None = None) -> str:
     env = Environment(loader=FileSystemLoader(TEMPLATE_DIR), autoescape=False)
     tpl = env.get_template(KFS_TEMPLATE_FILENAME)
@@ -679,13 +777,14 @@ def contract_sign():
         borrower_name = session.get("borrower_name_actual") or session.get("borrower_name") or "Borrower"
         data = fetch_loan_page_values(loan_id)
         now = datetime.datetime.utcnow()
+        amount_val = data.get("Amount_Sanctioned", "0")
         data.update({
             "Borrower_Name": borrower_name,
             "Borrower_Address": session.get("borrower_address", data.get("Address", "N/A")),
             "Borrower_Phone": session.get("borrower_phone", data.get("Phone_Number", "N/A")),
             "Borrower_Guardian": data.get("Guardian_Name", "N/A"),
             "Amount_Sanctioned": data.get("Amount_Sanctioned", "₹0"),
-            "Amount_Sanctioned_Words": "Five Lakh Rupees Only",
+            "Amount_Sanctioned_Words": amount_to_inr_words(amount_val),
             "date": now.strftime("%d"),
             "month": now.strftime("%B"),
             "year": now.strftime("%Y")
@@ -790,12 +889,13 @@ def contract_sign_submit():
         data = fetch_loan_page_values(loan_id)
         borrower_name = session.get("borrower_name_actual") or session.get("borrower_name") or data.get("Borrower_Name", "Borrower")
         now = datetime.datetime.utcnow()
+        amount_val = data.get("Amount_Sanctioned", "0")
         context = {
             "Borrower_Name": borrower_name,
             "Borrower_Address": session.get("borrower_address", data.get("Address", "N/A")),
             "Borrower_Phone": session.get("borrower_phone", data.get("Phone_Number", "N/A")),
             "Amount_Sanctioned": data.get("Amount_Sanctioned", ""),
-            "Amount_Sanctioned_Words": "Five Lakh Rupees Only",
+            "Amount_Sanctioned_Words": amount_to_inr_words(amount_val),
             "date": now.strftime("%d"),
             "month": now.strftime("%B"),
             "year": now.strftime("%Y"),
